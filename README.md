@@ -1,35 +1,35 @@
 # SimpleSwap dApp
 
-A fully decentralized token exchange (DEX) built on the Ethereum blockchain, allowing users to swap between two ERC20 tokens. This project was developed as part of the Module 4 Practical Work.
+A fully decentralized token exchange (DEX) built on the Ethereum blockchain, allowing users to swap between two ERC20 tokens. This project was developed as part of the Module 4 Practical Work, focusing on frontend integration, smart contract testing, and deployment.
 
-**Live Demo URL:** [**Your Vercel Link Here**]
+**🚀 Live Demo on Sepolia Testnet: [simple-swap-dapp.vercel.app](https://simple-swap-dapp.vercel.app/)**
 
 ---
 
-## 🚀 Features
+## ✨ Features
 
-*   **Wallet Integration:** Securely connect using MetaMask.
-*   **Real-Time Price Feeds:** View up-to-the-second exchange rates fetched directly from the smart contract.
-*   **Decentralized Swapping:** Atomically swap tokens with a robust, two-step `Approve` + `Swap` flow.
+*   **Wallet Integration:** Securely connect your Web3 wallet (e.g., MetaMask) to interact with the dApp.
+*   **Real-Time Price Feeds:** View up-to-the-second exchange rates fetched directly from the blockchain.
+*   **Decentralized Swapping:** Atomically swap tokens with a robust, two-step `Approve` + `Swap` flow for maximum security.
 *   **Professionally Tested Backend:** The `SimpleSwap.sol` smart contract has over 95% test coverage, ensuring reliability and security.
-*   **Modern Frontend:** Built with React, Vite, and TypeScript for a fast and type-safe user experience.
+*   **Modern Frontend:** Built with React, Vite, and TypeScript for a fast, intuitive, and type-safe user experience.
 
 ## 🛠️ Tech Stack
 
 ### Backend
 
-*   **Solidity:** Language for smart contracts.
+*   **Solidity:** Language for smart contracts on the EVM.
 *   **Hardhat:** Ethereum development environment for compiling, testing, and deploying contracts.
 *   **Ethers.js:** Library for interacting with the Ethereum blockchain.
 *   **OpenZeppelin Contracts:** For secure, standard ERC20 implementations.
-*   **Chai:** Assertion library for testing.
+*   **Chai & Waffle:** Assertion and testing libraries for robust unit tests.
 
 ### Frontend
 
-*   **React:** UI library.
+*   **React:** UI library for building the user interface.
 *   **Vite:** Next-generation frontend tooling for blazing fast development.
-*   **TypeScript:** For static typing and code quality.
-*   **Ethers.js:** To connect the frontend to the blockchain.
+*   **TypeScript:** For static typing and enhanced code quality.
+*   **Ethers.js:** To connect the frontend to blockchain data and user wallets.
 
 ## Local Development
 
@@ -37,8 +37,8 @@ To run this project locally, follow these steps:
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/your-username/your-repo-name.git
-    cd SimpleSwap-Project
+    git clone https://github.com/pablomaes/simple-swap-dapp.git
+    cd simple-swap-dapp
     ```
 
 2.  **Setup Backend:**
@@ -46,7 +46,7 @@ To run this project locally, follow these steps:
     cd backend
     npm install
     ```
-    Create a `.env` file in the `backend` directory based on the `.env.example` file and add your private key and RPC URL.
+    Create a `.env` file in the `backend` directory based on `.env.example` and add your private key and a local node RPC URL.
 
 3.  **Run a local Hardhat node:**
     ```bash
@@ -54,12 +54,12 @@ To run this project locally, follow these steps:
     ```
 
 4.  **Deploy contracts to the local node:**
-    In a new terminal:
+    In a new terminal window:
     ```bash
     cd backend
     npx hardhat run scripts/deploy.ts --network localhost
     ```
-    *Note: You will need to update the token addresses in `deploy.ts` to mock addresses for local testing.*
+    *Note: The script will deploy mock ERC20 tokens and the SimpleSwap contract, printing their addresses to the console. You will need to update these addresses in the frontend constants file for local testing.*
 
 5.  **Setup Frontend:**
     ```bash
@@ -71,31 +71,37 @@ To run this project locally, follow these steps:
 
 ---
 
-## 📜 Contract API Reference
+## 📜 Deployed Contracts on Sepolia Testnet
+
+*   **SimpleSwap Contract:** [`0xC9dD7BFcA22Ba08AC04826D18990b48DBe2d3E26`](https://sepolia.etherscan.io/address/0xC9dD7BFcA22Ba08AC04826D18990b48DBe2d3E26)
+*   **Token A (TKA):** [`0xFF067375EE4dD5Ef60c4Be3482aa42866e0DA10d`](https://sepolia.etherscan.io/address/0xFF067375EE4dD5Ef60c4Be3482aa42866e0DA10d)
+*   **Token B (TKB):** [`0xd51EFA4C4021134b90A7b378ea29637bFBB80fF2`](https://sepolia.etherscan.io/address/0xd51EFA4C4021134b90A7b378ea29637bFBB80fF2)
+
+---
+
+## 🔌 Contract API Reference
 
 This section details the public interface of the `SimpleSwap.sol` smart contract.
 
 ### Functions
 
-```solidity
-function addLiquidity(address tokenA, address tokenB, uint256 amountADesired, uint256 amountBDesired, uint256 amountAMin, uint256 amountBMin, address to, uint256 deadline) external returns (uint256 amountA, uint256 amountB, uint256 liquidity)
-function removeLiquidity(address tokenA, address tokenB, uint256 liquidity, uint256 amountAMin, uint256 amountBMin, address to, uint256 deadline) external returns (uint256 amountA, uint256 amountB)
-function swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin, address[] calldata path, address to, uint256 deadline) external
-function getPrice(address tokenA, address tokenB) external view returns (uint256 price)
-function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) public pure returns (uint256 amountOut)
 ```
-
+function swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin, address[] calldata path, address to, uint256 deadline) external returns (uint[] memory amounts)
+function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) public pure returns (uint256 amountOut)
+function getPrice(address tokenIn, address tokenOut) external view returns (uint256 price)
+// Functions for adding/removing liquidity are also available but not used in this specific frontend.
+```
 ### Events
 
-```solidity
-event LiquidityAdded(address indexed provider, uint256 amount0, uint256 amount1, uint256 liquidity)
-event LiquidityRemoved(address indexed provider, uint256 amount0, uint256 amount1)
-event SwapExecuted(address indexed user, address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut)
+```
+event Swap(address indexed sender, uint amount0In, uint amount1In, uint amount0Out, uint amount1Out, address indexed to)
+// Events for Mint and Burn (liquidity) are also part of the contract.
+
 ```
 
 ### Custom Errors
 
-```solidity
+```
 error SimpleSwap__Expired()
 error SimpleSwap__InvalidTokens()
 error SimpleSwap__IdenticalAddresses()
