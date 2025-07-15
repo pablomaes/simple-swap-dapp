@@ -37,13 +37,17 @@ error SimpleSwap__InsufficientInputAmount();
 error SimpleSwap__TransferFailed();
 
 
-/// @title SimpleSwap
-/// @author Pablo Maestu
-/// @notice A simplified, single-pair Automated Market Maker (AMM) contract that allows for token swaps and liquidity provision, built with modern Solidity best practices.
+/**
+ * @title SimpleSwap
+ * @author Pablo Maestu
+ * @notice A simplified, single-pair Automated Market Maker (AMM) contract.
+ * @dev This contract allows for token swaps and liquidity provision, built with modern Solidity best practices
+ *      including custom errors and gas optimizations like caching state variables in memory.
+ */
 contract SimpleSwap is ERC20 {
-    /// @notice The first token of the trading pair.
+    /// @notice The first token of the trading pair. Address is immutable for gas savings.
     address public immutable token0;
-    /// @notice The second token of the trading pair.
+    /// @notice The second token of the trading pair. Address is immutable for gas savings.
     address public immutable token1;
     /// @notice The reserve of token0 held by this contract.
     uint public reserve0;
@@ -66,8 +70,8 @@ contract SimpleSwap is ERC20 {
 
     /// @notice Emitted when liquidity is removed from the pool.
     /// @param provider The address that removed the liquidity.
-    /// @param amount0 The amount of token0 received.
-    /// @param amount1 The amount of token1 received.
+    /// @param amount0 The amount of token0 received back.
+    /// @param amount1 The amount of token1 received back.
     event LiquidityRemoved(address indexed provider, uint amount0, uint amount1);
     
     /// @notice Emitted when a token swap is executed.
@@ -79,9 +83,12 @@ contract SimpleSwap is ERC20 {
     event SwapExecuted(address indexed user, address indexed tokenIn, address indexed tokenOut, uint amountIn, uint amountOut);
 
 
-    /// @notice Initializes the contract with a specific pair of tokens and sets up the LP token.
-    /// @param _token0 The address of the first ERC20 token.
-    /// @param _token1 The address of the second ERC20 token.
+    /**
+     * @notice Initializes the contract with a specific pair of tokens and sets up the LP token.
+     * @dev Stores token addresses in immutable variables for gas efficiency. Reverts if tokens are identical or zero.
+     * @param _token0 The address of the first ERC20 token.
+     * @param _token1 The address of the second ERC20 token.
+     */
     constructor(address _token0, address _token1) ERC20("SimpleSwap LP Token", "SSLP") {
         if (_token0 == address(0) || _token1 == address(0)) revert SimpleSwap__ZeroAddress();
         if (_token0 == _token1) revert SimpleSwap__IdenticalAddresses();
@@ -109,42 +116,44 @@ contract SimpleSwap is ERC20 {
         uint amountAMin, uint amountBMin,
         address to, uint deadline
     ) external ensure(deadline) returns (uint amountA, uint amountB, uint liquidity) {
-        if (!((tokenA == token0 && tokenB == token1) || (tokenA == token1 && tokenB == token0))) revert SimpleSwap__InvalidTokens();
+        address localToken0 = token0;
+        address localToken1 = token1;
+        if (!((tokenA == localToken0 && tokenB == localToken1) || (tokenA == localToken1 && tokenB == localToken0))) revert SimpleSwap__InvalidTokens();
 
-        (uint _reserve0, uint _reserve1) = (reserve0, reserve1);
+        (uint localReserve0, uint localReserve1) = (reserve0, reserve1);
         
-        if (_reserve0 == 0 && _reserve1 == 0) {
+        if (localReserve0 == 0 && localReserve1 == 0) {
             (amountA, amountB) = (amountADesired, amountBDesired);
         } else {
-            uint amountBOptimal = (amountADesired * _reserve1) / _reserve0;
+            uint amountBOptimal = (amountADesired * localReserve1) / localReserve0;
             if (amountBOptimal <= amountBDesired) {
                 if (amountBOptimal < amountBMin) revert SimpleSwap__InsufficientBAmount();
                 (amountA, amountB) = (amountADesired, amountBOptimal);
             } else {
-                uint amountAOptimal = (amountBDesired * _reserve0) / _reserve1;
+                uint amountAOptimal = (amountBDesired * localReserve0) / localReserve1;
                 if (amountAOptimal < amountAMin) revert SimpleSwap__InsufficientAAmount();
                 (amountA, amountB) = (amountAOptimal, amountBDesired);
             }
         }
 
-        (uint amount0, uint amount1) = (tokenA == token0) ? (amountA, amountB) : (amountB, amountA);
+        (uint amount0, uint amount1) = (tokenA == localToken0) ? (amountA, amountB) : (amountB, amountA);
 
-        uint totalLPSupply = totalSupply();
-        if (totalLPSupply == 0) {
+        uint localTotalSupply = totalSupply();
+        if (localTotalSupply == 0) {
             liquidity = sqrt(amount0 * amount1);
         } else {
-            liquidity = min((amount0 * totalLPSupply) / _reserve0, (amount1 * totalLPSupply) / _reserve1);
+            liquidity = min((amount0 * localTotalSupply) / localReserve0, (amount1 * localTotalSupply) / localReserve1);
         }
         if (liquidity == 0) revert SimpleSwap__InsufficientLiquidityMinted();
+        
         _mint(to, liquidity);
-
-        _update(_reserve0 + amount0, _reserve1 + amount1);
+        _update(localReserve0 + amount0, localReserve1 + amount1);
         emit LiquidityAdded(msg.sender, amount0, amount1, liquidity);
 
-        if (!IERC20(tokenA).transferFrom(msg.sender, address(this), amountA)) revert SimpleSwap__TransferFailed();
-        if (!IERC20(tokenB).transferFrom(msg.sender, address(this), amountB)) revert SimpleSwap__TransferFailed();
+        if (!IERC20(localToken0).transferFrom(msg.sender, address(this), amount0)) revert SimpleSwap__TransferFailed();
+        if (!IERC20(localToken1).transferFrom(msg.sender, address(this), amount1)) revert SimpleSwap__TransferFailed();
     }
-
+    
     /**
      * @notice Removes liquidity from the pool.
      * @param tokenA The address of one token in the pair.
@@ -163,23 +172,25 @@ contract SimpleSwap is ERC20 {
         uint amountAMin, uint amountBMin,
         address to, uint deadline
     ) external ensure(deadline) returns (uint amountA, uint amountB) {
-        if (!((tokenA == token0 && tokenB == token1) || (tokenA == token1 && tokenB == token0))) revert SimpleSwap__InvalidTokens();
+        address localToken0 = token0;
+        address localToken1 = token1;
+        if (!((tokenA == localToken0 && tokenB == localToken1) || (tokenA == localToken1 && tokenB == localToken0))) revert SimpleSwap__InvalidTokens();
         
-        (uint _reserve0, uint _reserve1) = (reserve0, reserve1);
-        uint totalLPSupply = totalSupply();
-        uint amount0 = (liquidity * _reserve0) / totalLPSupply;
-        uint amount1 = (liquidity * _reserve1) / totalLPSupply;
+        (uint localReserve0, uint localReserve1) = (reserve0, reserve1);
+        uint localTotalSupply = totalSupply();
+        uint amount0 = (liquidity * localReserve0) / localTotalSupply;
+        uint amount1 = (liquidity * localReserve1) / localTotalSupply;
 
-        (amountA, amountB) = (tokenA == token0) ? (amount0, amount1) : (amount1, amount0);
+        (amountA, amountB) = (tokenA == localToken0) ? (amount0, amount1) : (amount1, amount0);
         if (amountA < amountAMin) revert SimpleSwap__InsufficientAOutput();
         if (amountB < amountBMin) revert SimpleSwap__InsufficientBOutput();
 
         _burn(msg.sender, liquidity);
-        _update(_reserve0 - amount0, _reserve1 - amount1);
+        _update(localReserve0 - amount0, localReserve1 - amount1);
         emit LiquidityRemoved(msg.sender, amount0, amount1);
 
-        if (!IERC20(token0).transfer(to, amount0)) revert SimpleSwap__TransferFailed();
-        if (!IERC20(token1).transfer(to, amount1)) revert SimpleSwap__TransferFailed();
+        if (!IERC20(localToken0).transfer(to, amount0)) revert SimpleSwap__TransferFailed();
+        if (!IERC20(localToken1).transfer(to, amount1)) revert SimpleSwap__TransferFailed();
     }
 
     /**
@@ -197,25 +208,23 @@ contract SimpleSwap is ERC20 {
         address to,
         uint deadline
     ) external ensure(deadline) {
+        address localToken0 = token0;
+        address localToken1 = token1;
         if (path.length != 2) revert SimpleSwap__InvalidPath();
-        if (!((path[0] == token0 && path[1] == token1) || (path[0] == token1 && path[1] == token0))) revert SimpleSwap__InvalidPair();
+        if (!((path[0] == localToken0 && path[1] == localToken1) || (path[0] == localToken1 && path[1] == localToken0))) revert SimpleSwap__InvalidPair();
         
-        (uint _reserve0, uint _reserve1) = (reserve0, reserve1);
+        (uint localReserve0, uint localReserve1) = (reserve0, reserve1);
 
         address tokenIn = path[0];
         address tokenOut = path[1];
-        (uint reserveIn, uint reserveOut) = (tokenIn == token0) ? (_reserve0, _reserve1) : (_reserve1, _reserve0);
+        (uint reserveIn, uint reserveOut) = (tokenIn == localToken0) ? (localReserve0, localReserve1) : (localReserve1, localReserve0);
         
         uint amountOut = getAmountOut(amountIn, reserveIn, reserveOut);
         if (amountOut < amountOutMin) revert SimpleSwap__InsufficientOutputAmount();
 
-        if (tokenIn == token0) {
-            _update(_reserve0 + amountIn, _reserve1 - amountOut);
-        } else {
-            // ================== THIS IS THE FIX ==================
-            _update(_reserve0 - amountOut, _reserve1 + amountIn);
-            // =====================================================
-        }
+        (uint newReserve0, uint newReserve1) = (tokenIn == localToken0) ? (localReserve0 + amountIn, localReserve1 - amountOut) : (localReserve0 - amountOut, localReserve1 + amountIn);
+        _update(newReserve0, newReserve1);
+        
         emit SwapExecuted(msg.sender, tokenIn, tokenOut, amountIn, amountOut);
         
         if (!IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn)) revert SimpleSwap__TransferFailed();
@@ -224,19 +233,21 @@ contract SimpleSwap is ERC20 {
 
     /**
      * @notice Returns the price of tokenA in terms of tokenB.
+     * @dev Price is calculated based on the ratio of reserves, scaled to 1e18.
      * @param tokenA The address of the token to be priced.
      * @param tokenB The address of the token used as the denomination.
      * @return price The amount of tokenB equivalent to 1e18 units of tokenA.
      */
     function getPrice(address tokenA, address tokenB) external view returns (uint price) {
-        if (!((tokenA == token0 && tokenB == token1) || (tokenA == token1 && tokenB == token0))) revert SimpleSwap__InvalidTokens();
-        if (reserve0 == 0 || reserve1 == 0) revert SimpleSwap__NoLiquidity();
+        address localToken0 = token0;
+        address localToken1 = token1;
+        if (!((tokenA == localToken0 && tokenB == localToken1) || (tokenA == localToken1 && tokenB == localToken0))) revert SimpleSwap__InvalidTokens();
+        
+        uint localReserve0 = reserve0;
+        uint localReserve1 = reserve1;
+        if (localReserve0 == 0 || localReserve1 == 0) revert SimpleSwap__NoLiquidity();
 
-        if (tokenA == token0) {
-            return (reserve1 * 1e18) / reserve0;
-        } else {
-            return (reserve0 * 1e18) / reserve1;
-        }
+        return (tokenA == localToken0) ? (localReserve1 * 1e18) / localReserve0 : (localReserve0 * 1e18) / localReserve1;
     }
 
     /**
@@ -251,10 +262,10 @@ contract SimpleSwap is ERC20 {
         if (reserveIn == 0 || reserveOut == 0) revert SimpleSwap__NoLiquidity();
         uint numerator = amountIn * reserveOut;
         uint denominator = reserveIn + amountIn;
-        amountOut = numerator / denominator;
+        return numerator / denominator;
     }
 
-    // --- Internal Helper Functions ---
+    // --- Internal & Helper Functions ---
 
     /**
      * @dev Updates the contract's reserve balances.

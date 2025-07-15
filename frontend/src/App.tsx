@@ -2,47 +2,39 @@ import { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import { SIMPLE_SWAP_ADDRESS, SIMPLE_SWAP_ABI } from './constants/contract';
 
+// --- CONSTANTS ---
+/**
+ * @dev The ABI for the ERC20 token contracts, including the custom faucet function.
+ */
+const TOKEN_ABI = [
+    "function approve(address spender, uint256 amount) returns (bool)", 
+    "function allowance(address owner, address spender) view returns (uint256)", 
+    "function balanceOf(address account) view returns (uint256)",
+    "function faucet()", // Custom function for getting test tokens
+];
+
+
 /**
  * @notice The main application component for the SimpleSwap dApp.
  * @dev This component handles wallet connection, contract interaction, and UI rendering.
- * @author Pablo Maestu & AI Assistant
+ * @author Pablo Maestu 
  */
 function App() {
   // =================================================================================
   // STATE VARIABLES
   // =================================================================================
   
-  /** @notice The user's connected wallet address. Null if not connected. */
   const [currentAccount, setCurrentAccount] = useState<string | null>(null);
-  
-  /** @notice An ethers.js contract instance for our SimpleSwap contract. */
   const [contract, setContract] = useState<ethers.Contract | null>(null);
-  
-  /** @notice An ethers.js contract instance for the Token A contract. */
   const [tokenAContract, setTokenAContract] = useState<ethers.Contract | null>(null);
-
-  /** @notice The user's balance of Token A. */
+  const [tokenBContract, setTokenBContract] = useState<ethers.Contract | null>(null);
   const [tokenABalance, setTokenABalance] = useState<string>("");
-
-  /** @notice The price of Token B in terms of Token A (1 TKA = X TKB). */
   const [priceAforB, setPriceAforB] = useState<string>("");
-
-  /** @notice The price of Token A in terms of Token B (1 TKB = X TKA). */
   const [priceBforA, setPriceBforA] = useState<string>("");
-
-  /** @notice The amount of Token A the user wishes to swap. */
   const [amountA, setAmountA] = useState<string>("");
-
-  /** @notice The estimated amount of Token B the user will receive. */
   const [amountB, setAmountB] = useState<string>("");
-
-  /** @notice A boolean flag to indicate when a transaction is pending. */
   const [isLoading, setIsLoading] = useState<boolean>(false);
-
-  /** @notice A boolean flag indicating if the user needs to approve the token spend. */
   const [needsApproval, setNeedsApproval] = useState<boolean>(false);
-
-  /** @notice A reference to store the debounce timer. */
   const debounceTimeout = useRef<number | null>(null);
 
   // =================================================================================
@@ -50,28 +42,38 @@ function App() {
   // =================================================================================
   
   /**
-   * @notice Initializes ethers and contract instances after a wallet connection.
-   * @dev It sets up a signer, creates instances for both SimpleSwap and Token A contracts,
-   *      and fetches the user's initial Token A balance.
+   * @notice Initializes ethers provider, signer, and contract instances after wallet connection.
+   * @dev Creates instances for SimpleSwap, Token A, and Token B contracts.
    * @param userAddress The address of the connected user.
    */
   const initializeEthers = async (userAddress: string) => {
-    const browserProvider = new ethers.BrowserProvider(window.ethereum);
-    const signer = await browserProvider.getSigner();
-    
-    const newContract = new ethers.Contract(SIMPLE_SWAP_ADDRESS, SIMPLE_SWAP_ABI, signer);
-    setContract(newContract);
-    
-    const token0Address = await newContract.token0();
-    const tokenAbi = ["function approve(address spender, uint256 amount) returns (bool)", "function allowance(address owner, address spender) view returns (uint256)", "function balanceOf(address account) view returns (uint256)"];
-    const tokenAInstance = new ethers.Contract(token0Address, tokenAbi, signer);
-    setTokenAContract(tokenAInstance);
+    setIsLoading(true);
+    try {
+      const browserProvider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await browserProvider.getSigner();
+      
+      const newContract = new ethers.Contract(SIMPLE_SWAP_ADDRESS, SIMPLE_SWAP_ABI, signer);
+      setContract(newContract);
+      
+      const [token0Address, token1Address] = await Promise.all([newContract.token0(), newContract.token1()]);
+      
+      const tokenAInstance = new ethers.Contract(token0Address, TOKEN_ABI, signer);
+      setTokenAContract(tokenAInstance);
+      
+      const tokenBInstance = new ethers.Contract(token1Address, TOKEN_ABI, signer);
+      setTokenBContract(tokenBInstance);
 
-    const balance = await tokenAInstance.balanceOf(userAddress);
-    setTokenABalance(ethers.formatUnits(balance, 18));
+      const balance = await tokenAInstance.balanceOf(userAddress);
+      setTokenABalance(ethers.formatUnits(balance, 18));
 
-    setCurrentAccount(userAddress);
-    console.log("Ethers initialized for account:", userAddress);
+      setCurrentAccount(userAddress);
+      console.log("Ethers initialized for account:", userAddress);
+    } catch (error) {
+      console.error("Initialization failed:", error);
+      alert("Failed to initialize the application. Please ensure you are on the correct network (e.g., Sepolia) and refresh the page.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   /**
@@ -97,13 +99,42 @@ function App() {
   // =================================================================================
 
   /**
+   * @notice Mints test tokens to the user by calling the faucet function on both token contracts.
+   * @dev This allows any user to get tokens to test the application's functionality.
+   */
+  const handleGetTokens = async () => {
+    if (!tokenAContract || !tokenBContract || !currentAccount) {
+      alert("Please connect your wallet first.");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      console.log("Requesting tokens from faucets...");
+      const txA = await tokenAContract.faucet();
+      const txB = await tokenBContract.faucet();
+      
+      await Promise.all([txA.wait(), txB.wait()]);
+
+      alert("Tokens received successfully! You got 100 TKA and 100 TKB.");
+      
+      const newBalance = await tokenAContract.balanceOf(currentAccount);
+      setTokenABalance(ethers.formatUnits(newBalance, 18));
+
+    } catch (error: any) {
+      console.error("Failed to get tokens:", error);
+      alert(`An error occurred while getting tokens: ${error.reason || error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
    * @notice Fetches the current swap prices from the SimpleSwap contract.
    */
   const fetchPrices = async () => {
     if (!contract) return;
     try {
-      const token0Address = await contract.token0();
-      const token1Address = await contract.token1();
+      const [token0Address, token1Address] = await Promise.all([contract.token0(), contract.token1()]);
       const [price0, price1] = await Promise.all([
         contract.getPrice(token0Address, token1Address),
         contract.getPrice(token1Address, token0Address)
@@ -117,35 +148,39 @@ function App() {
 
   /**
    * @notice Handles input changes for the Token A amount field using debouncing.
-   * @dev First validates against balance, then waits 300ms after user stops typing
-   *      before fetching the output amount and checking allowance.
+   * @dev Validates input, then waits 300ms before fetching the output amount and checking allowance.
    * @param amount The input amount as a string.
    */
   const handleAmountAChange = (amount: string) => {
     setAmountA(amount);
     if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
-    if (!amount || Number(amount) <= 0) {
+
+    if (!amount || !/^\d*\.?\d*$/.test(amount) || Number(amount) <= 0) {
       setAmountB("");
       setNeedsApproval(false);
       return;
     }
+    
     if (Number(amount) > Number(tokenABalance)) {
-      setAmountB("");
+      setAmountB("Insufficient balance");
       setNeedsApproval(false);
       return; 
     }
+
     debounceTimeout.current = window.setTimeout(async () => {
       if (contract && tokenAContract && currentAccount) {
         try {
           const amountInBigInt = ethers.parseUnits(amount, 18);
+          const [reserve0, reserve1] = await Promise.all([contract.reserve0(), contract.reserve1()]);
           const [amountOut, allowance] = await Promise.all([
-            contract.getAmountOut(amountInBigInt, await contract.reserve0(), await contract.reserve1()),
+            contract.getAmountOut(amountInBigInt, reserve0, reserve1),
             tokenAContract.allowance(currentAccount, SIMPLE_SWAP_ADDRESS)
           ]);
           setAmountB(ethers.formatUnits(amountOut, 18));
           setNeedsApproval(allowance < amountInBigInt);
         } catch (error) {
           console.error("Error in debounced handler:", error);
+          setAmountB("Error calculating amount");
         }
       }
     }, 300);
@@ -163,9 +198,9 @@ function App() {
       await tx.wait();
       setNeedsApproval(false);
       alert("Approval successful! You can now perform the swap.");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Approval failed:", error);
-      alert("Approval failed.");
+      alert(`Approval failed: ${error.reason || error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -179,9 +214,10 @@ function App() {
     setIsLoading(true);
     try {
       const amountIn = ethers.parseUnits(amountA, 18);
-      const amountOutMin = 0; 
+      const amountOutMin = 0; // For simplicity, no slippage protection in this UI
       const path = [await contract.token0(), await contract.token1()];
-      const deadline = Math.floor(Date.now() / 1000) + 60 * 20;
+      const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 minutes from now
+      
       const tx = await contract.swapExactTokensForTokens(amountIn, amountOutMin, path, currentAccount, deadline);
       await tx.wait();
       alert("Swap successful!");
@@ -191,28 +227,41 @@ function App() {
       setAmountA("");
       setAmountB("");
       fetchPrices();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Swap failed:", error);
-      alert("Swap failed.");
+      alert(`Swap failed: ${error.reason || error.message}`);
     } finally {
       setIsLoading(false);
     }
   };
 
   // =================================================================================
-  // SIDE EFFECTS
+  // SIDE EFFECTS & UI HELPERS
   // =================================================================================
 
   /**
    * @notice A React Hook to fetch initial data when the contract is ready.
    */
   useEffect(() => {
-    if (contract) fetchPrices();
-  }, [contract]);
-
-  // =================================================================================
-  // UI HELPER & RENDER LOGIC
-  // =================================================================================
+    if (contract) {
+        fetchPrices();
+        // Set up a listener for Swap events to refresh prices and balance
+        const onSwap = () => {
+            console.log("Swap detected, refreshing data...");
+            fetchPrices();
+            if(tokenAContract && currentAccount) {
+                tokenAContract.balanceOf(currentAccount).then(newBalance => {
+                    setTokenABalance(ethers.formatUnits(newBalance, 18));
+                });
+            }
+        };
+        contract.on("SwapExecuted", onSwap);
+        // Cleanup listener on component unmount
+        return () => {
+            contract.off("SwapExecuted", onSwap);
+        };
+    }
+  }, [contract, currentAccount, tokenAContract]);
 
   /**
    * @notice A utility function to shorten a wallet address for display.
@@ -255,28 +304,40 @@ function App() {
       <main>
         {currentAccount ? (
           <>
+            <div className="faucet-container">
+              <h3>Need Test Tokens?</h3>
+              <p>Get 100 TKA & 100 TKB to start swapping on the Sepolia network.</p>
+              <button
+                className="faucet-button"
+                onClick={handleGetTokens}
+                disabled={isLoading}
+              >
+                {isLoading ? "Processing..." : "Get Test Tokens"}
+              </button>
+            </div>
+
             <div className="prices-container">
               <h2>Current Rates</h2>
-              <p>1 Token A = {priceAforB} Token B</p>
-              <p>1 Token B = {priceBforA} Token A</p>
+              <p>1 TKA ≈ {Number(priceAforB).toFixed(5)} TKB</p>
+              <p>1 TKB ≈ {Number(priceBforA).toFixed(5)} TKA</p>
             </div>
 
             <div className="swap-container">
               <h2>Swap Tokens</h2>
               <div className="swap-input">
-                <label>You send (Token A) - Balance: {Number(tokenABalance).toFixed(4)}</label>
+                <label>You send (TKA) - Balance: {Number(tokenABalance).toFixed(4)}</label>
                 <input
                   type="number"
                   placeholder="0.0"
                   value={amountA}
                   onChange={(e) => handleAmountAChange(e.target.value)}
-                  disabled={!currentAccount}
+                  disabled={isLoading}
                 />
               </div>
               <div className="swap-input">
-                <label>You receive (Token B)</label>
+                <label>You receive (TKB)</label>
                 <input
-                  type="number"
+                  type="text"
                   placeholder="0.0"
                   value={amountB}
                   readOnly
@@ -295,13 +356,12 @@ function App() {
         ) : (
           <div className="landing-view">
             <h2>Welcome to SimpleSwap</h2>
-            <p className="connect-prompt">Please connect your wallet to begin swapping.</p>
+            <p className="connect-prompt">Please connect your MetaMask wallet to begin.</p>
             <button
                 className="swap-button"
-                onClick={renderButton().action}
-                disabled={renderButton().disabled}
+                onClick={connectWallet}
               >
-                {renderButton().text}
+                Connect Wallet
             </button>
           </div>
         )}
@@ -310,4 +370,4 @@ function App() {
   )
 }
 
-export default App
+export default App;

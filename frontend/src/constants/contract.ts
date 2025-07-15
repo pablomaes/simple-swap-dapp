@@ -1,5 +1,5 @@
-// La dirección del contrato SimpleSwap que desplegaste en Sepolia
-export const SIMPLE_SWAP_ADDRESS = "0xC9dD7BFcA22Ba08AC04826D18990b48DBe2d3E26";
+// La dirección del contrato SimpleSwap que desplegamos en Sepolia
+export const SIMPLE_SWAP_ADDRESS = "0xE8037844250C3556089Ca40A8223d02cDf37D77A";
 
 // El ABI del contrato, que le dice a ethers.js cómo interactuar con él.
 // Lo importamos directamente del archivo que Hardhat generó.
