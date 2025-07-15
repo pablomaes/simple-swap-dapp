@@ -49,7 +49,8 @@ All contracts have been publicly verified on Etherscan, making their source code
 ## 📂 Project Structure
 
 The repository is a monorepo containing two main packages:
-/
+
+
 ├── backend/ # Contains all Hardhat, Solidity, and contract-related code.
 │ ├── contracts/ # The Solidity smart contracts (SimpleSwap, MockERC20).
 │ ├── scripts/ # Deployment and helper scripts.
@@ -97,7 +98,7 @@ function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) public pur
  */
 function getPrice(address tokenA, address tokenB) external view returns (uint price);
 
-Events
+#### Events
 
 /// @notice Emitted when a token swap is executed.
 event SwapExecuted(address indexed user, address indexed tokenIn, address indexed tokenOut, uint amountIn, uint amountOut);
@@ -105,7 +106,7 @@ event SwapExecuted(address indexed user, address indexed tokenIn, address indexe
 /// @notice Emitted when liquidity is added to the pool.
 event LiquidityAdded(address indexed provider, uint amount0, uint amount1, uint liquidity);
 
-💻 Frontend: UI Details
+#### 💻 Frontend: UI Details
 The user interface is a single-page application built in React.
 
 User Flow
@@ -120,13 +121,13 @@ Swap: After approval, the user can execute the swap.
 Core Component
 All application logic is contained within frontend/src/App.tsx. It manages the application state (connection status, balances, contract instances) using React hooks (useState, useEffect).
 
-🧪 Testing & Quality Assurance
+#### 🧪 Testing & Quality Assurance
 The smart contracts were rigorously tested using the Hardhat testing environment with Chai for assertions.
 
 Test Coverage
 The project exceeds the requirement of 50% test coverage, achieving over 95% line coverage on the core SimpleSwap.sol contract. This ensures that all critical paths, including success cases and failure reverts, are tested.
 
-🚀 Local Development Setup
+#### 🚀 Local Development Setup
 To run this project locally, follow these steps:
 
 Clone the repository: git clone https://github.com/pablomaes/simple-swap-dapp.git
@@ -137,5 +138,5 @@ Deploy contracts to the local node in a second terminal: cd backend && npx hardh
 Run the frontend development server: cd frontend && npm run dev. The app will be available at http://localhost:5173.
 ---
 
-Author
+#### Author
 Pablo Maestu
