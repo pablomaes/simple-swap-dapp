@@ -150,9 +150,9 @@ contract SimpleSwap is ERC20 {
         _update(localReserve0 + amount0, localReserve1 + amount1);
         emit LiquidityAdded(msg.sender, amount0, amount1, liquidity);
 
-        if (!IERC20(localToken0).transferFrom(msg.sender, address(this), amount0)) revert SimpleSwap__TransferFailed();
-        if (!IERC20(localToken1).transferFrom(msg.sender, address(this), amount1)) revert SimpleSwap__TransferFailed();
-    }
+if (!IERC20(tokenA).transferFrom(msg.sender, address(this), amountA)) revert SimpleSwap__TransferFailed();
+if (!IERC20(tokenB).transferFrom(msg.sender, address(this), amountB)) revert SimpleSwap__TransferFailed();
+}
     
     /**
      * @notice Removes liquidity from the pool.
