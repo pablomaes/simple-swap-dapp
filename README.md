@@ -81,7 +81,7 @@ The contract was written with security and gas efficiency as primary concerns, a
 This section details the most relevant functions of the `SimpleSwap.sol` contract.
 
 #### Functions
-```solidity
+
 /**
  * @notice Swaps an exact amount of an input token for as much as possible of an output token.
  */
@@ -98,6 +98,7 @@ function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) public pur
  */
 function getPrice(address tokenA, address tokenB) external view returns (uint price);
 
+´´´
 #### Events
 
 /// @notice Emitted when a token swap is executed.
