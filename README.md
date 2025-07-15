@@ -132,12 +132,17 @@ The project exceeds the requirement of 50% test coverage, achieving over 95% lin
 To run this project locally, follow these steps:
 
 Clone the repository: git clone https://github.com/pablomaes/simple-swap-dapp.git
+
 Install backend dependencies: cd simple-swap-dapp/backend && npm install
+
 Install frontend dependencies: cd ../frontend && npm install
+
 Run a local Hardhat node in a dedicated terminal: cd backend && npx hardhat node
+
 Deploy contracts to the local node in a second terminal: cd backend && npx hardhat run scripts/deploy.ts --network localhost. This script also adds initial liquidity.
+
 Run the frontend development server: cd frontend && npm run dev. The app will be available at http://localhost:5173.
----
+
 
 #### Author
 Pablo Maestu
